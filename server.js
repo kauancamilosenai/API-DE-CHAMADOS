@@ -119,6 +119,40 @@ app.get('/chamar', verificarAutenticacao, async (request, response) => {
         const token = request.token
         if(token.tipo != "tecnico" && token.tipo != "admin"){ return response.status(401).json({error: "seu token não tem acesso á '/chamar'"})}
 
+        const {status} = request.query
+        const {prioridade} = request.query
+        //console.log({status, prioridade})
+
+        if(status && prioridade){
+            const statusANDprioridadePG = await pool.query('SELECT * FROM chamados WHERE status = $1 and prioridade = $2', [status, prioridade])
+
+            if(statusANDprioridadePG.rows.length == 0){
+                return response.status(400).json({'STATUS+PRIORIDADE ERROR': `status: '${status}' e prioridade: '${prioridade}'`})
+            }
+
+            return response.status(200).json(statusANDprioridadePG.rows)
+        }
+
+        if(status){
+            const statusPG = await pool.query('SELECT * FROM chamados WHERE status = $1', [status])
+
+            if(statusPG.rows.length == 0){
+                return response.status(400).json({'STATUS ERROR': `status: '${status}'`})
+            }
+            
+            return response.status(200).json(statusPG.rows)
+        }
+
+        if(prioridade){
+            const prioridadePG = await pool.query('SELECT * FROM chamados WHERE prioridade = $1', [prioridade])
+
+            if(prioridadePG.rows.length == 0){
+                return response.status(400).json({'PRIORIDADE ERROR': `status: '${prioridade}'`})
+            }
+            
+            return response.status(200).json(prioridadePG.rows)
+        }
+
         const resultado = await pool.query('SELECT * FROM chamados')
         const {id} = request.query
         const verificar = await pool.query('SELECT * FROM chamados WHERE id = $1', [id])
@@ -128,6 +162,30 @@ app.get('/chamar', verificarAutenticacao, async (request, response) => {
             return response.status(400).json("por favor insira um ID valido")
         }
         return response.status(200).json(resultado.rows)
+    }
+    catch(err){
+        return response.status(400).json('error'+ err)
+    }
+})
+
+app.get('/chamados/estatisticas', verificarAutenticacao, async (request, response) => {
+    try{
+        const r1 = await pool.query(`SELECT count(id) as "total_de_chamados" FROM chamados`)
+        const total_de_chamados = r1.rows[0].total_de_chamados
+        
+        const r2 = await pool.query(`SELECT count(status) as "total_de_chamados_abertos" FROM chamados  WHERE status = 'aberto'`)
+        const total_de_chamados_abertos = r2.rows[0].total_de_chamados_abertos
+        
+        const r3 = await pool.query(`SELECT count(id) as "total_em_atendimentos" FROM chamados  WHERE status = 'em_atendimento'`)
+        const total_em_atendimentos = r3.rows[0].total_em_atendimentos
+        
+        const r4 = await pool.query(`SELECT count(id) as "total_finalizados" FROM chamados  WHERE status = 'finalizado'`)
+        const total_finalizados = r4.rows[0].total_finalizados
+        
+        const r5 = await pool.query(`SELECT count(id) as "total_com_prioridade_alta" FROM chamados  WHERE prioridade = ''`)
+        const total_com_prioridade_alta = r5.rows[0].total_com_prioridade_alta
+
+        return response.status(200).json({total_de_chamados,total_de_chamados_abertos,total_em_atendimentos,total_finalizados,total_com_prioridade_alta})
     }
     catch(err){
         return response.status(400).json('error'+ err)
